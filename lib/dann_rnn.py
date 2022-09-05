@@ -6,11 +6,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from pprint import pprint
 
-from lib.dense_layers import DenseLayer
-from lib.model import Model
+from old_lib.dense_layers import DenseLayer
+from old_lib.model import Model
 
-from lib import utils
-from lib import rnn_basic_tasks
+from old_lib import utils
+from old_lib import rnn_basic_tasks
 from lib.base_rnn import BaseRNNCell
 from lib.init_policies import Bias_ZerosInit, Hidden_ZerosInit, EiRNNCell_W_InitPolicy, EiRNNCell_U_InitPolicy
 

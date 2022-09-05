@@ -5,8 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-
-
+import utils
 """
 It is expected that you reimplement 
 
@@ -20,7 +19,7 @@ to print out details of the nn.module when you print the model.
 Note: Some of the classes use "WeightInitPolicy" in their name, and some just have "Init",
       for simpicity we will move to just using "Init" in future classes
 """
-# ------------ Dense Layer Specific ------------
+# ------------ Dense Layer Specific ------------  #
 class DenseNormalInit:
     """ 
     Initialises a Dense layer's weights (W) from a normal dist,
@@ -35,51 +34,20 @@ class DenseNormalInit:
 
     For eg. use numerator=1 for sigmoid, numerator=2 for relu
     """
-    def __init__(self, stddev_numerator=2):
-        self.stddev_numerator = stddev_numerator
+    def __init__(self, numerator=2):
+        self.numerator = numerator
 
     def init_weights(self, layer):
-        nn.init.normal_(layer.W, mean=0, std=np.sqrt((self.stddev_numerator / layer.n_input)))
+        nn.init.normal_(layer.W, mean=0, 
+                        std=np.sqrt((self.numerator / layer.n_input)))
         nn.init.zeros_(layer.b)
-        
-class EiDenseWeightInit_ICLR:
-    """ 
-    Initialises an EiDense layer's weights as in original paper 
-    (note just the inhib_iid_init=False)
-
-    See https://openreview.net/pdf?id=eU776ZYxEpz
-    """
-    
-    def init_weights(self,layer):
-        target_std = np.sqrt(2*np.pi/(layer.n_input*(2*np.pi-1)))
-        exp_scale = target_std # The scale parameter, \beta = 1/\lambda = std
-        Wex_np = np.random.exponential(scale=exp_scale, size=(layer.ne, layer.n_input))
-        if layer.ni == 1: # for example the output layer
-            Wix_np = Wex_np.mean(axis=0,keepdims=True) # not random as only one int
-            Wei_np = np.ones(shape = (layer.ne, layer.ni))/layer.ni
-        else:
-            # We consider wee ~ wie, and the inhib outputs are Wei <- 1/ni
-            Wix_np = np.random.exponential(scale=exp_scale, size=(layer.ni, layer.n_input))
-            Wei_np = np.ones(shape = (layer.ne, layer.ni))/layer.ni
-
-        layer.Wex.data = torch.from_numpy(Wex_np).float()
-        layer.Wix.data = torch.from_numpy(Wix_np).float()
-        layer.Wei.data = torch.from_numpy(Wei_np).float()
-        nn.init.zeros_(layer.b)
-
-class EiDenseWithShunt_WeightInitPolicy_ICLR(EiDenseWeightInit_ICLR):
-    def init_weights(self,layer):
-        super().init_weights(layer)
-        a_numpy = np.sqrt((2*np.pi-1)/layer.n_input) * np.ones(shape=layer.alpha.shape)
-        a = torch.from_numpy(a_numpy)
-        alpha_val = torch.log(a)
-        layer.alpha.data = alpha_val.float()
-        
+                 
 def calc_ln_mu_sigma(mean, var, ex2=None):
     "Given desired mean and var returns ln mu and sigma"
     mu_ln = np.log(mean**2 / np.sqrt(mean**2 + var))
     sigma_ln = np.sqrt(np.log(1 + (var /mean**2)))
     return mu_ln, sigma_ln
+
 class EiDenseWeightInit_WexMean:
     """
     Initialises inhibitory weights to exactly perform the centering operation of Layer Norm.
@@ -104,6 +72,7 @@ class EiDenseWeightInit_WexMean:
         if self.wex_distribution =="exponential":
             Wex_np = np.random.exponential(scale=exp_scale, size=(layer.ne, layer.n_input))
             Wei_np = np.random.exponential(scale=exp_scale, size=(layer.ne, layer.ni))
+        
         elif self.wex_distribution =="lognormal":
             mu, sigma = calc_ln_mu_sigma(target_std_wex,target_std_wex**2)
             Wex_np = np.random.lognormal(mu, sigma, size=(layer.ne, layer.n_input))
@@ -165,88 +134,31 @@ class EiDenseWeightInit_WexMean_Groups(EiDenseWeightInit_WexMean):
         """
         self.n_groups = n_groups
                 
-# ------------ CNN Specific Initializations ------------
-
-# export
-class HeConv2d_WeightInitPolicy():
-    """
-    Remember BaseWeightInitPolicy is basically just nn.Module
-    """
-    @staticmethod
-    def init_weights(conv2d):
-        """
-        Args:
-            conv2d - an instance of nn.Conv2d
-
-        Note this is more a combination of Lecun init (just fan-in)
-        and He init (numerator is 2 dues to relu).
-
-        References:
-        https://arxiv.org/pdf/1502.01852.pdf
-        http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf
-        """
-        fan_in = np.prod(conv2d.weight.shape[1:]) # we scale weights for each filter's activation
-        target_std = np.sqrt((2 / fan_in))
-
-        if conv2d.bias is not None:
-            nn.init.zeros_(conv2d.bias)
-
-        nn.init.normal_(conv2d.weight, mean=0, std=target_std)
-        
-class EiConv_WeightInitPolicy():
-
-    def init_weights(self, layer):
-        
-        # alpha same as before apart from d is defined differently
-        a_numpy = np.sqrt((2*np.pi-1)/ (layer.d)) * np.ones(shape=layer.alpha.shape)
-        a = torch.from_numpy(a_numpy)
-        alpha_val = torch.log(a)
-        layer.alpha.data = alpha_val.float() 
-        
-        # init E and I filter weights
-        # for MLP hidden target_std = np.sqrt(2*np.pi/(layer.n_input*(2*np.pi-1)))  
-
-        target_std = np.sqrt(2*np.pi/ (layer.d*(2*np.pi-1)))
-        exp_scale = target_std # The scale parameter, \beta = 1/\lambda = std
-        Wex_np = np.random.exponential(scale=exp_scale, size=(layer.e_conv.weight.shape))
-        
-        # this shouldn't apply to conv models?
-        if layer.i_conv.out_channels == 1:
-            Wix_np = Wex_np.mean(axis=0, keepdims=True) # not random as only one int
-            Wei_np = np.ones(shape = layer.Wei.shape)/layer.i_conv.out_channels
-        
-        elif layer.i_conv.out_channels != 1:
-            # We consider wee ~ wie, and the inhib outputs are Wei <- 1/ni
-            Wix_np = np.random.exponential(scale=exp_scale, size=(layer.i_conv.weight.shape)) 
-            Wei_np = np.ones(shape = layer.Wei.shape)/layer.i_conv.out_channels
-            
-        layer.e_conv.weight.data = torch.from_numpy(Wex_np).float() 
-        layer.i_conv.weight.data = torch.from_numpy(Wix_np).float() 
-        layer.Wei.data = torch.from_numpy(Wei_np).float()
-        nn.init.zeros_(layer.b)
-        nn.init.ones_(layer.g)
-
 
 # ------------ RNN Specific Initializations ------------
-
-# ------------- "Standard" RNNCell Parameter Initializations ----------
+# 1. "Standard" RNNCell Parameter Initializations
+# 2. 
+# 3. 
+# ------------- 1. "Standard" RNNCell Parameter Initializations ----------
 class W_NormalInit:
     """ Initialization of cell.W for h2h for RNNCell from a normal dist"""
 
-    def __init__(self, denom=2):
-        self.denom = denom
+    def __init__(self, numerator=2):
+        self.numerator = numerator
 
     def init_weights(self, cell):
-        nn.init.normal_(cell.W, mean=0, std=np.sqrt((self.denom / cell.n_hidden)))
+        nn.init.normal_(cell.W, mean=0, 
+                        std=np.sqrt((self.numerator / cell.n_hidden)))
 
 class U_NormalInit:
     """ Initialization of cell.U for i2h for RNNCell from a normal dist"""
 
-    def __init__(self, denom=2):
-        self.denom = denom
+    def __init__(self, numerator=2):
+        self.numerator = numerator
 
     def init_weights(self, cell):
-        nn.init.normal_(cell.U, mean=0, std=np.sqrt((self.denom / cell.n_input)))
+        nn.init.normal_(cell.U, mean=0,
+                        std=np.sqrt((self.numerator / cell.n_input)))
 
 class W_IdentityInit:
     """
@@ -259,6 +171,7 @@ class W_IdentityInit:
     @staticmethod
     def init_weights(cell):
         nn.init.eye_(cell.W)
+
 class W_HybridInit_Uniform:
     """
     W = (1-p)*Id + p*W(Uniform Init)
@@ -267,13 +180,13 @@ class W_HybridInit_Uniform:
         self.p = p
 
     def init_weights(self, cell):
-        bound = 1 / math.sqrt(cell.n_hidden)
-        W_p_np = np.random.uniform(-bound, bound, size=(cell.n_hidden, cell.n_hidden))
-        W_id_np = np.eye(cell.n_hidden)
+        n_hidden = cell.n_hidden
+        bound = 1 / math.sqrt(n_hidden)
+        W_p_np = np.random.uniform(-bound, bound, size=(n_hidden, n_hidden))
+        W_id_np = np.eye(n_hidden)
         W = self.p * W_p_np + (1-self.p) * W_id_np
-        cell.W.data = torch.from_numpy(W).float().to('cuda' if torch.cuda.is_available else 'cpu')
-class W_OrthogonalInit:
-    pass
+        device = utils.get_device()
+        cell.W.data = torch.from_numpy(W).float().to(device)
 
 class Bias_ZerosInit:
     @staticmethod
@@ -342,8 +255,6 @@ class Hidden_ZerosInit(nn.Module):
         super().__init__()
         self.h0 = nn.Parameter(torch.zeros(n_hidden, 1), requires_grad)
 
-    #         print(self.hidden_init.shape)
-
     def reset(self, cell, batch_size):
         # print("Hidden_ZerosInit",batch_size)
         cell.h = self.h0.repeat(1, batch_size)  # Repeat tensor along bath dim.
@@ -352,10 +263,8 @@ class EiRNNCell_WeightInitPolicy():
     """
     This weight init policy assumes model with attrs:
     Wex,Wix,Wei,b, where ni >= 1.
-
-    Todo - update this with the different ideas
     """
-    def __init__(self,numerator=1/3):
+    def __init__(self, numerator=1/3):
         """
         2 for he, 1/3 for pytorch, 1 for xavier
         """
@@ -506,8 +415,8 @@ class ColumnEiCell_W_InitPolicy:
     Positive weights are drawn from an exponential distribution.
     Use D atricices to param the e and i cells.
     """
-    def __init__(self, denom=None, radius=None):
-        self.denom = denom
+    def __init__(self, numerator=None, radius=None):
+        self.numerator = numerator
         self.spectral_radius = radius
 
     # @staticmethod
@@ -518,9 +427,9 @@ class ColumnEiCell_W_InitPolicy:
         ne = layer.ne_h
         ni = layer.ni_h
 
-        self.denom = ((2 * np.pi - 1) / (2 * np.pi)) * (ne + (ne ** 2 / ni))
+        self.numerator = ((2 * np.pi - 1) / (2 * np.pi)) * (ne + (ne ** 2 / ni))
 
-        sigma_we = np.sqrt(1 / self.denom)
+        sigma_we = np.sqrt(1 / self.numerator)
         sigma_wi = (ne / ni) * sigma_we
 
         We_np = np.random.exponential(scale=sigma_we, size=(layer.n_hidden, ne))
