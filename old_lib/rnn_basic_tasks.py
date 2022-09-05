@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 
-from lib import utils
+from old_lib import utils
 
 # export
 def get_mnist_datasets():

@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 
-from lib import utils
+from old_lib import utils
 
 #export
 def adding_problem_generator(batch_size, seq_len, high=1):

@@ -9,7 +9,7 @@ import torchvision
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.data.sampler import SubsetRandomSampler, SequentialSampler, RandomSampler
 
-from lib import utils
+from old_lib import utils
 from pathlib import Path
 
 

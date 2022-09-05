@@ -33,10 +33,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from lib.homoestatic import ConvHomeostaticMixin, HomeostaticMixin # to be removed when we stop using the premade update policies
+from old_lib.homoestatic import ConvHomeostaticMixin, HomeostaticMixin # to be removed when we stop using the premade update policies
 import sys
 
-from lib import utils
+from old_lib import utils
 
 # ------------ General ------------
 

@@ -8,7 +8,7 @@ import torch
 
 from pathlib import Path
 
-from lib import utils
+from old_lib import utils
 
 # from lib import nbdevlite
 
