@@ -17,7 +17,7 @@ def clip_grad_norm(model, mx_norm):
 
 class SGD(Optimizer):
     
-    def __init__(self, params, lr=0.1,weight_decay=0.0, exponentiated_grad: bool = False, ):
+    def __init__(self, params, lr=0.1, weight_decay=0.0, exponentiated_grad: bool = False, ):
         """
         Args:
             params - Iterable of parameters to optimize or dictionaries defining parameter groups.
@@ -91,7 +91,11 @@ class AdamW(Optimizer):
             raise ValueError(f"Invalid beta parameter: {betas[1]} - should be in [0.0, 1.0)")
         if not 0.0 <= eps:
             raise ValueError(f"Invalid epsilon value: {eps} - should be >= 0.0")
-        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay, correct_bias=correct_bias)
+        defaults = dict(lr=lr, betas=betas, eps=eps, 
+                        weight_decay=weight_decay, 
+                        correct_bias=correct_bias,
+                        exponentiated_grad=exponentiated_grad,
+                        wd_decoupled=wd_decoupled)
         super().__init__(params, defaults)
 
     def step(self, closure: Callable = None):

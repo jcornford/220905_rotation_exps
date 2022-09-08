@@ -74,7 +74,7 @@ class RNNCell(BaseRNNCell):
                  i2h_init_policy=U_NormalInit(),
                  h2h_init_policy=W_NormalInit(),
                  bias_init_policy=Bias_ZerosInit(),
-                 update_policy=SGD()):
+                 update_policy=SGD(), bias=True):
         """
         n_input  : input dimensionality
         n_hidden : self hidden state dimensionality
@@ -86,7 +86,7 @@ class RNNCell(BaseRNNCell):
         # self.network_index = None # 0 being first cell in stack
         self.U = nn.Parameter(torch.randn(n_hidden, n_input))
         self.W = nn.Parameter(torch.randn(n_hidden, n_hidden))
-        self.b = nn.Parameter(torch.ones(n_hidden, 1))
+        self.b = nn.Parameter(torch.ones(n_hidden, 1), requires_grad=bias)
         self.nonlinearity = nonlinearity
 
         # based on the nonlinearity switch the denominator here? basically if relu

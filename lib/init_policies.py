@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-import utils
+from . import utils
 """
 It is expected that you reimplement 
 
@@ -258,7 +258,6 @@ class Hidden_ZerosInit(nn.Module):
     def reset(self, cell, batch_size):
         # print("Hidden_ZerosInit",batch_size)
         cell.h = self.h0.repeat(1, batch_size)  # Repeat tensor along bath dim.
-
 class EiRNNCell_WeightInitPolicy():
     """
     This weight init policy assumes model with attrs:
