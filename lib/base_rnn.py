@@ -86,7 +86,7 @@ class RNNCell(BaseRNNCell):
         # self.network_index = None # 0 being first cell in stack
         self.U = nn.Parameter(torch.randn(n_hidden, n_input))
         self.W = nn.Parameter(torch.randn(n_hidden, n_hidden))
-        self.b = nn.Parameter(torch.ones(n_hidden, 1), requires_grad=bias)
+        self.b = nn.Parameter(torch.zeros(n_hidden, 1), requires_grad=bias)
         self.nonlinearity = nonlinearity
 
         # based on the nonlinearity switch the denominator here? basically if relu

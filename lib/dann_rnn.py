@@ -14,7 +14,12 @@ from old_lib import rnn_basic_tasks
 from lib.base_rnn import BaseRNNCell
 from lib.init_policies import Bias_ZerosInit, Hidden_ZerosInit, EiRNNCell_W_InitPolicy, EiRNNCell_U_InitPolicy
 
-#export
+# class PositiveParameter(nn.Parameter):
+#     def __init__(self, data=None, requires_grad=True):
+#         super().__init__(data,requires_grad)
+#         self.positive_only = True
+
+PositiveParameter = nn.Parameter
 class EiRNNCell(BaseRNNCell):
     """
     Class modelling a DANN-RNN with subtractive feedforward
@@ -43,13 +48,14 @@ class EiRNNCell(BaseRNNCell):
         self.ni_h2h = ni_h2h
 
         # to-from notation - U_post_pre and the shape is n_output x n_input
-        self.Uex = nn.Parameter(torch.empty(ne,n_input))
-        self.Uix = nn.Parameter(torch.empty(ni_i2h,n_input))
-        self.Uei = nn.Parameter(torch.empty(ne,ni_i2h))
+        self.Uex = PositiveParameter(torch.empty(ne,n_input))
+        self.Uix = PositiveParameter(torch.empty(ni_i2h,n_input))
+        self.Uei = PositiveParameter(torch.empty(ne,ni_i2h))
 
-        self.Wex = nn.Parameter(torch.empty(ne,ne))
-        self.Wix = nn.Parameter(torch.empty(ni_h2h,ne))
-        self.Wei = nn.Parameter(torch.empty(ne,ni_h2h))
+        self.Wex = PositiveParameter(torch.empty(ne,ne))
+        self.Wix = PositiveParameter(torch.empty(ni_h2h,ne))
+        self.Wei = PositiveParameter(torch.empty(ne,ni_h2h))
+        
 
         self.b = nn.Parameter(torch.ones(ne, 1))
         self.nonlinearity = nonlinearity
@@ -62,7 +68,7 @@ class EiRNNCell(BaseRNNCell):
         self.update_policy = update_policy
 
         self.init_weights()
-
+        
     @property
     def W(self):
         return self.Wex - torch.matmul(self.Wei, self.Wix)

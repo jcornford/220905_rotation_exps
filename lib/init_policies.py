@@ -332,27 +332,21 @@ class EiRNNCell_W_InitPolicy():
     def init_weights(self,layer):
         # for W
         # target_std = np.sqrt(2*np.pi/(layer.n_input*(2*np.pi-1)))
-        target_std = np.sqrt( (layer.ne/((layer.ne-1))  * (self.numerator/layer.n_input)))
-        exp_scale = target_std # The scale parameter, \beta = 1/\lambda = std
+        target_std_wex = np.sqrt(self.numerator*layer.ne/(layer.n_hidden*(layer.ne-1)))
+        exp_scale = target_std_wex # The scale parameter, \beta = 1/\lambda = std
+        mu, sigma = calc_ln_mu_sigma(target_std_wex,target_std_wex**2)
+        # set proportional like exp
         
-        Wex_np = np.random.exponential(scale=exp_scale, size=(layer.ne, layer.ne))
-
-        if layer.ni_h2h == 1: # for example the output layer
-            Wix_np = Wex_np.mean(axis=0,keepdims=True) # not random as only one int
-            Wei_np = np.ones(shape = (layer.ne, layer.ni_h2h))/layer.ni_h2h
-
-        elif layer.ni_h2h != 1:
-            # We consider wee ~ wie, and the inhib outputs are Wei <- 1/ni
-            Wix_np = np.random.exponential(scale=exp_scale, size=(layer.ni_h2h, layer.ne))
-            Wei_np = np.ones(shape=(layer.ne, layer.ni_h2h))/layer.ni_h2h
-        else:
-            Wix_np, Wei_np = None, None
-            raise ValueError('Invalid value for layer.ni, should be a positive integer.')
-
-        layer.Wex.data = torch.from_numpy(Wex_np).float().to('cuda' if torch.cuda.is_available() else 'cpu')
-        layer.Wix.data = torch.from_numpy(Wix_np).float().to('cuda' if torch.cuda.is_available() else 'cpu')
-        layer.Wei.data = torch.from_numpy(Wei_np).float().to('cuda' if torch.cuda.is_available() else 'cpu')
-
+        Wex_np = np.random.lognormal(mu, sigma, size=(layer.ne, layer.n_hidden))
+        Wei_np = np.random.lognormal(mu, sigma, size=(layer.ne, layer.ni_h2h))
+        Wei_np /= Wei_np.sum(axis=1, keepdims=True)
+        Wix_np = np.ones(shape=(layer.ni_h2h,1))*Wex_np.mean(axis=0,keepdims=True)
+        layer.Wex.data = torch.from_numpy(Wex_np).float()
+        layer.Wix.data = torch.from_numpy(Wix_np).float()
+        layer.Wei.data = torch.from_numpy(Wei_np).float()
+        layer.Wex.data.positive_only = True
+        layer.Wix.data.positive_only = True
+        layer.Wei.data.positive_only = True
 
 class EiRNNCell_U_InitPolicy():
     """

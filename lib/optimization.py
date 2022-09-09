@@ -38,12 +38,18 @@ class SGD(Optimizer):
         """
         for group in self.param_groups:
             for p in group["params"]:
+                
                 if p.grad is None:
                     continue
                 if group["exponentiated_grad"]:
-                    p.data.mul_(p.data.exp(p.sign() * p.grad.data * -group["lr"]))
+                    p.data.mul_(torch.exp(p.sign() * p.grad.data * -group["lr"]))
                 else:
                     p.data.add_(p.grad.data, alpha=-group["lr"])
+                #breakpoint()
+
+                try: 
+                    if group["positive_only"]: p.data.clamp_(min=0)
+                except: pass 
 
 
 class AdamW(Optimizer):
